@@ -1,10 +1,26 @@
-## .env vars needed
+# 1. clone project
+```cmd
+git clone https://github.com/fasihh/shop-api.git
+```
 
-- PORT [listening port]
-- SEQUELIZE_HOSTNAME [database's hostname]
-- SEQUELIZE_DATABASE [database name]
-- SEQUELIZE_USERNAME [database user]
-- SEQUELIZE_PASSWORD [database password]
-- SEQUELIZE_DIALECT  [type of database]
-- JWT_KEY [key for json web tokens]
-- MODE (optional) ['dev' to enable developer mode]
+# 2. install dependencies
+```cmd
+npm install
+```
+
+# 3. init environment variables
+copy and initialize your own variables
+```cmd
+cp .env.example .env
+```
+
+# 4. create database
+use this in the .env variable for the database name
+```sql
+create database shop;
+```
+
+# 5. run the api
+```command
+npm start
+```
