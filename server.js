@@ -7,7 +7,9 @@ const port = process.env.PORT || 3000;
 
 (async () => {
     await sequelize.authenticate();
+    await sequelize.sync({ alter: process.env.MODE === 'dev' });
     console.log('Connection to DB successfull');
+
     http.createServer(app).listen(port);
     console.log(`Server live: http://localhost:${port}`);
 })()
