@@ -1,0 +1,1 @@
+module.exports = res => res.status(401).json({ message: 'Auth failure' });
