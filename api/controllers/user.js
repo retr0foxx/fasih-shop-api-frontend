@@ -3,16 +3,16 @@ const UserService = require('../services/user');
 const ash = require('../utils/asyncHandler');
 
 module.exports.getAllUsers = ash(async (req, res, next) => {
-    const users = await UserService.getAllUsers();
+    const users = await UserService.getAllUsers(req.query);
 
     return res.status(200).json({
         message: 'Users retrieved',
-        count: users.length,
+        total_count: users.length,
         // oh so this is done because there's the hash as well right
         // you cant include that.
         users: users.map(user => ({
             id: user.id,
-            name: user.name,
+            username: user.username,
             createdAt: user.createdAt,
         })),
     });

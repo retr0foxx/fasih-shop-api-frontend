@@ -1,7 +1,7 @@
 const User = require('../models/user');
 
-module.exports.getAll = async () =>
-    await User.findAll();
+module.exports.getAll = async (options) =>
+    await User.findAll(options);
 
 module.exports.getByName = async username =>
     await User.findOne({ where: { username }});

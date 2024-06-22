@@ -1,6 +1,7 @@
 const UserDAO = require('../daos/user');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const parseReq = require("../utils/parseReq")
 require('dotenv').config();
 
 module.exports.loginUser = async ({ username, password }) => {
@@ -50,4 +51,5 @@ module.exports.signUpUser = async ({ username, password }) => {
     });
 }
 
-module.exports.getAllUsers = async () => await UserDAO.getAll();
+// oh so it does that to filter out any other possible user-input parameters
+module.exports.getAllUsers = async ({ limit, page }) => await UserDAO.getAll(parseReq({ limit, page }));
