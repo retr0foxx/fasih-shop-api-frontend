@@ -18,7 +18,7 @@ router.get('/id/:id/image', ItemController.getImageById);
 
 router.post('/', jwtAuth, upload.single('itemImage'), ItemController.create);
 
-router.patch('/:id', upload.single('itemImage'), jwtAuth, ItemController.update);
+router.patch('/:id', jwtAuth, upload.single('itemImage'), ItemController.update);
 
 router.delete('/:id', jwtAuth, ItemController.delete);
 
