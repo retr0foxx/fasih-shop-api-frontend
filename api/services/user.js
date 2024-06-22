@@ -27,6 +27,15 @@ module.exports.loginUser = async ({ username, password }) => {
     return token;
 }
 
+module.exports.getById = async (id) => {
+    const user = await UserDAO.getById(id);
+    if (user === null) throw {
+        status: 404,
+        message: "User does not exist"
+    };
+    return user;
+}
+
 module.exports.signUpUser = async ({ username, password }) => {
     const user = await UserDAO.getByName(username);
     if (user) throw {
