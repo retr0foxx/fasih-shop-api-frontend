@@ -11,10 +11,14 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// TODO: Don't let users edit creatorId or item id
+// TODO: Don't let users decide the user ID on item creation
+
 router.get('/', ItemController.getAllItems);
 router.get('/itemname/:itemName', ItemController.getItemsByName);
 router.get('/id/:id', ItemController.getById);
 router.get('/id/:id/image', ItemController.getImageById);
+router.get("/creatorid/:id", ItemController.getItemsByCreatorId);
 
 router.post('/', jwtAuth, upload.single('itemImage'), ItemController.create);
 

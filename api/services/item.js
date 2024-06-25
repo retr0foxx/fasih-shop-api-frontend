@@ -16,6 +16,20 @@ module.exports.getItems = async ({ limit, page }) => {
     };
 }
 
+module.exports.getItemsByCreatorId = async (creator_id, { limit, page }) => {
+    let condition = { itemCreatorId: creator_id };
+
+    const items = await ItemDAO.getAll({
+        ...condition,
+        ...parseReq({ limit, page })
+    });
+
+    return {
+        items,
+        total_count: await ItemDAO.countAll(condition)
+    };
+}
+
 module.exports.getItemsByName = async (itemName, { limit, page }) => {
     const keywords = itemName.split(' ').map(keyword => ({ itemName: { [Op.like]: `%${keyword}%` } }));
     const condition = { where: { [Op.and]: keywords } };
@@ -27,7 +41,7 @@ module.exports.getItemsByName = async (itemName, { limit, page }) => {
 
     return {
         items,
-        total_items: await ItemDAO.countAll(condition),
+        total_count: await ItemDAO.countAll(condition),
     };
 }
 
@@ -52,12 +66,13 @@ module.exports.getImageById = async id => {
     return imagePath;
 }
 
-module.exports.createItem = async (item, file) => {
-    await ItemDAO.create({
+module.exports.createItem = async (item, file, creator_id) => {
+    return await ItemDAO.create({
         itemName: item.itemName,
         price: item.price,
         description: item.description,
         itemImage: file?.filename,
+        itemCreatorId: creator_id
     });
 }
 
