@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- 
+        Note that you are not able to search by name and creator ID at the same time.
+        UI:
+        Always shows a search by name part at the top
+        If it's viewing by user the it will show the username under that
+        Then the list of items with somehing above it indicating how many of the items there are in total
+    -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item view</title>
+    <script src="api-wrapper.js"></script>
+    <script src="document-utils.js"></script>
+    <script>
+        const ITEMS_PER_PAGE = 10;
+
+        let search_params = new URLSearchParams(window.location.search);
+        let search_all = false;
+        let [creator_id, name] = [null, null];
+        let page = Number(search_params.get("page"));
+        if (!Number.isInteger(page) || page < 1)
+            page = 0;
+        else
+            page -= 1;
+
+        // warning: uses global variables
+        async function request_items()
+        {
+            if (creator_id != null)
+                return await Item.get_by_creator_id(creator_id, ITEMS_PER_PAGE, page);
+            else if (name != null)
+                return await Item.get_by_name(name, ITEMS_PER_PAGE, page);
+            
+            return await Item.get_all(ITEMS_PER_PAGE, page);
+        }
+        // resolves to an actual list of data
+        let item_list_promise;
+        if (search_params.has("name"))
+            name = search_params.get("name");
+        else if (search_params.has("creator"))
+            creator_id = Number(search_params.get("creator"));
+        else
+            search_all = true;
+
+        let creator_table;
+        let item_resourcelist;
+
+        async function do_all_requests()
+        {
+            console.log("Fetching items...");
+            item_resourcelist = await request_items();
+            let items = item_resourcelist.data;
+            console.log("Fetched items:", items);
+
+            creator_table = items.reduce((acc, value) => {
+                acc.set(value.creator_id, null);
+                return acc;
+            }, new Map());
+            if (creator_id != null)
+                creator_table.set(creator_id, null);
+
+            console.log("Creators to fetch:", creator_table.keys());
+            for (let creator_id of creator_table.keys())
+            {
+                try
+                {
+                    creator_table.set(creator_id, await User.get_by_id(creator_id));
+                }
+                catch (error)
+                {
+                    console.log(`Failed to fetch creator with ID ${creator_id}, ${error.message}`);
+                }
+            }
+            console.log("Creator table:", creator_table);
+        }
+
+        let request_promise = do_all_requests();
+    </script>
+    <style>
+        .item {
+            display: flex;
+            flex-direction: row;
+            border-style: solid;
+            border-width: 2px;
+        }
+        .item-image {
+            border-style: solid;
+            border-width: 2px;
+
+            max-width: 360px;
+            max-height: 360px;
+        }
+        .current-page-button {
+            background-color: white;
+        }
+    </style>
+    <template id="item-template">
+        <div class="item">
+            <div class="item-image-container">
+                <img class="item-image">
+            </div>
+            <div class="item-data-container">
+                <table>
+                    <tr>
+                        <td>Name</td>
+                        <td>:</td>
+                        <td class="item-name-data"></td>
+                    </tr>
+                    <tr>
+                        <td>Description</td>
+                        <td>:</td>
+                        <td class="item-description-data"></td>
+                    </tr>
+                    <tr>
+                        <td>Price</td>
+                        <td>:</td>
+                        <td class="item-price-data"></td>
+                    </tr>
+                    <tr>
+                        <td>Creator</td>
+                        <td>:</td>
+                        <td class="item-creator-data"></td>
+                    </tr>
+                    <tr>
+                        <td>Creation date</td>
+                        <td>:</td>
+                        <td class="item-creation-date-data"></td>
+                    </tr>
+                    <tr>
+                        <td>Update date</td>
+                        <td>:</td>
+                        <td class="item-update-date-data"></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </template>
+</head>
+<body>
+    <div class="search-bar">
+        <input type="text" id="name-search-input" placeholder="Search item by name..." onkeydown="searchbar_enter(this)">
+        <button onclick="search()">Search</button>
+    </div>
+    <div class="creator-bar"></div>
+    <div class="item-list">
+
+    </div>
+    <span id="loading-span">Loading...</span>
+    <div class="pagination-div">
+
+    </div>
+    <script>
+        function search()
+        {
+            let query = encodeURIComponent(name_search_input.value);
+            ["page", "creator"].forEach(param_key => search_params.delete(param_key));
+            search_params.set("name", query);
+            window.location = `items.html?name=${query}`;
+        }
+        function searchbar_enter(ev)
+        {
+            if (event.key == "Enter")
+                search();
+        }
+
+        let item_element_template = document.getElementById("item-template");
+        let search_bar = document.querySelector(".search-bar");
+        let creator_bar = document.querySelector(".creator-bar");
+        let item_list_container = document.querySelector(".item-list");
+        let loading_span = document.querySelector("#loading-span");
+        let pagination_div = document.querySelector(".pagination-div");
+
+        let name_search_input = document.querySelector("#name-search-input");
+        if (name != null)
+            name_search_input.value = name;
+        function create_item_data_element(item, creator_user)
+        {
+            let item_element = item_element_template.content.cloneNode(true);
+
+            let item_data_elements = {
+                name: item_element.querySelector(".item-name-data"),
+                description: item_element.querySelector(".item-description-data"),
+                price: item_element.querySelector(".item-price-data"),
+                creator: item_element.querySelector(".item-creator-data"),
+                creation_date: item_element.querySelector(".item-creation-date-data"),
+                update_date: item_element.querySelector(".item-update-date-data")
+            };
+
+            ["name", "description", "price"].forEach((key) => item_data_elements[key].textContent = item[key]);
+            if (creator_user != null)
+                item_data_elements.creator.append(create_html_element("a", { href: `./profile.html?id=${creator_user.id}` }, { textContent: creator_user.username }));
+            else
+                item_data_elements.creator.textContent = "Unknown";
+
+            [["creation_date", "created_at"], ["update_date", "updated_at"]].forEach(([key_elem, key_obj]) => item_data_elements[key_elem].textContent = (new Date(item[key_obj])).toLocaleDateString());
+            
+            let image_element = item_element.querySelector(".item-image");
+            image_element.src = `${SHOP_API_URL}/items/id/${item.id}/image/`
+            image_element.addEventListener("error", (error) => {
+                image_element.src = "./placeholder-item-image.png";
+            });
+            return item_element;
+        }
+        function create_item_data_elements(items, creator_table)
+        {
+            return items.reduce(
+                (acc, item) => {
+                    console.log(item.creator_id, creator_table.has(item.creator_id));
+                    acc.push(create_item_data_element(item, creator_table.has(item.creator_id) ? creator_table.get(item.creator_id) : null));
+                    return acc;
+                },
+                new Array()
+            );
+        }
+
+        function page_change(page)
+        {
+            search_params.set("page", page + 1);
+            window.location = `items.html?${search_params.toString()}`;
+        }
+
+        // function create_pagination_div()
+
+        request_promise.then((promise_result) => {
+            let creator = creator_id == null ? null : creator_table.get(creator_id);
+            if (creator != null)
+            {
+                creator_bar.innerHTML = `Listing items created by user <a href='./profile.html?${creator.id}'>${creator.username}</a>`
+            }
+
+
+            if (item_resourcelist.total_count > 0)
+            {
+                if (item_resourcelist.data.length > 0)
+                {
+                    let item_data_elements = create_item_data_elements(item_resourcelist.data, creator_table);
+                    item_list_container.append(...item_data_elements);
+                }
+                else
+                {
+                    item_list_container.append(document.createTextNode("No items in this page."));
+                }
+                // TODO: setup pagination here
+                let pagination_elements = [];
+
+                let total_pages = Math.ceil(item_resourcelist.total_count / ITEMS_PER_PAGE);
+                let ppage = page;
+                page = page >= total_pages ? total_pages - 1 : page;
+                pagination_div.append(document.createTextNode(`Total items: ${item_resourcelist.total_count} (${total_pages} pages)`));
+                if (page > 0)
+                {
+                    if (page > 1)
+                        pagination_elements.push(create_html_element("button", { onclick: `page_change(0)` }, { textContent: "<<" }));
+                    
+                    pagination_elements.push(create_html_element("button", { onclick: `page_change(${page - 1})` }, { textContent: "<" }));
+                }
+                let pagination_buttons_range = [Math.max(Math.min(page - 2, total_pages - 5), 0), Math.min(Math.max(page + 2, 4), total_pages - 1, )];
+                for (let i = pagination_buttons_range[0]; i < pagination_buttons_range[1] + 1; ++i)
+                {
+                    let da_button = create_html_element("button", { onclick: `page_change(${i})` }, { textContent: `${i + 1}` });
+                    if (i == ppage)
+                        da_button.classList.add("current-page-button");
+
+                    pagination_elements.push(da_button);
+                }
+                if (page < total_pages - 1)
+                {
+                    pagination_elements.push(create_html_element("button", { onclick: `page_change(${page + 1})` }, { textContent: ">" }));
+                    if (page < total_pages - 1)
+                        pagination_elements.push(create_html_element("button", { onclick: `page_change(${total_pages - 1})` }, { textContent: ">>" }));   
+                }
+                pagination_div.append(create_html_element("br"));
+                pagination_elements.forEach((elem) => pagination_div.append(elem));
+                page = ppage;
+            }
+            else
+            {
+                item_list_container.append(document.createTextNode("No items found."));
+            }
+            loading_span.remove();
+        });
+        request_promise.catch((error) => {
+            // console.log("Error while fetching data:", error);
+            alert(`Error while fetching data: ${error.message}`);
+            throw error; // for da console
+        });
+    </script>
+</body>
+</html>

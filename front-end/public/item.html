@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item view</title>
+    <script src="./api-wrapper.js"></script>
+    <script src="./cookie_utils.js"></script>
+    <script src="./document-utils.js"></script>
+    <style>
+        #item-image {
+            border-width: 2px;
+            border-style: solid;
+        }
+    </style>
+    <script>
+        let search_params = new URLSearchParams(window.location.search);
+        if (!search_params.has("id"))
+            window.location = "./items.html";
+
+        let loaded_cookies = load_all_cookies();
+        let item_id = parseInt(search_params.get("id"));
+        let invalid_id = false;
+        if (!Number.isInteger(item_id))
+            invalid_id = true;
+
+        let load_promise_resolver;
+        let load_promise = new Promise((resolver) => { load_promise_resolver = resolver; });
+
+        let editable_elements_ready = false;
+        let editable_elements = {
+            name: null, description: null, price: null
+        };
+
+        // for all buttons and inputs
+        function set_item_buttons_state(state)
+        {
+            [edit_button, cancel_edit_button, undo_edit_button, delete_button]
+                .forEach((value) => !state ? value.setAttribute("disabled", "") : value.removeAttribute("disabled"));
+        }
+
+        function set_item_inputs_state(state)
+        {
+            [...Object.values(editable_elements), item_image_input]
+                .forEach((value) => !state ? value.setAttribute("disabled", "") : value.removeAttribute("disabled"));
+        } 
+
+        let is_currently_editing = false;
+        async function edit_button_onclick()
+        {
+            if (is_currently_editing)
+            {
+                set_item_buttons_state(false);
+                set_item_inputs_state(false);
+                let file_blob;
+                try
+                {
+                    let price = new Number(editable_elements.price.value);
+                    if (!Number.isInteger(price))
+                        throw new Error("Invalid price number");
+
+                    file_blob = item_image_input.files[0];
+                    console.log("Update file blob:", file_blob);
+                    let update_to = new Item(item_data.id, editable_elements.name.value, price, editable_elements.description.value, null, file_blob);
+                    console.log("Updating to:", update_to);
+                    await Item.update(update_to, loaded_cookies.get("auth-token"));
+                }
+                catch (error)
+                {
+                    set_item_inputs_state(true);
+                    set_item_buttons_state(true);
+                    alert(`Item edit failed with error ${error.message}`);
+                    return;
+                }
+
+                document.getElementById("item-image").src = `${SHOP_API_URL}/items/id/${item_data.id}/image/?time=${(new Date()).toISOString()}`;
+                set_item_buttons_state(true);
+                set_item_inputs_state(false);
+
+                // reset edit buttons
+                edit_button.textContent = "Edit";
+                cancel_edit_button.remove();
+                undo_edit_button.remove();
+                item_image_input.remove();
+                item_image_input.value = "";
+                is_currently_editing = false;
+                document.body.append(delete_button);
+            }
+            else
+            {
+                set_item_buttons_state(true);
+                set_item_inputs_state(true);
+                edit_button.textContent = "Confirm Edit";
+                edit_buttons_div.append(cancel_edit_button, undo_edit_button);
+                is_currently_editing = true;
+
+                delete_button.remove();
+                document.body.insertBefore(item_image_input, edit_buttons_div);
+            }
+        }
+
+        function cancel_edit_button_onclick()
+        {
+            undo_edit_button_onclick();
+            set_item_inputs_state(false);
+
+            // reset edit buttons
+            edit_button.textContent = "Edit";
+            cancel_edit_button.remove();
+            undo_edit_button.remove();
+            item_image_input.remove();
+            item_image_input.value = "";
+            is_currently_editing = false;
+            document.body.append(delete_button);
+        }
+
+        function undo_edit_button_onclick()
+        {
+            // console.log("undo?");
+            for (let [key, value] of Object.entries(editable_elements))
+            {
+                editable_elements[key].value = item_data[key];
+            }
+            item_image_input.value = "";
+        }
+        
+        async function delete_button_onclick()
+        {
+            if (!confirm("Are you sure that you want to delete this item?"))
+                return;
+
+            try
+            {
+                await Item.delete(item_data.id, loaded_cookies.get("auth-token"));
+            }
+            catch (error)
+            {
+                alert(`Item deletion failed with error ${item.image}`);
+            }
+            alert("Item deletion successful! Redirecting to profile page...");
+            window.location = "./profile.html";
+        }
+
+        async function fetch_item_and_creator_data()
+        {
+            let item = null;
+            let creator = null;
+            let self_is_creator = null;
+            try
+            {
+                item = await Item.get_by_id(item_id);
+                if (item.creator_id != null)
+                {
+                    creator = await User.get_by_id(item.creator_id);
+                    self_is_creator = creator != null && loaded_cookies.has("auth-id") && creator.id == parseInt(loaded_cookies.get("auth-id"));
+                }
+            }
+            catch (e)
+            {
+                if (!(e instanceof ResourceNotFoundError))
+                    throw e;
+
+                console.log("Data request error:", e);
+                console.log("item, user:", item, creator);
+            }
+            return [item, creator, self_is_creator];
+        }
+
+        // return the editable elements. item must not be empty
+        function create_item_data_element(item, creator, is_editable)
+        {
+            let item_template_element = document.getElementById("item-data-template").content.cloneNode(true);
+            let image_element = item_template_element.querySelector("#item-image");
+            let data_elements = {
+                name: item_template_element.querySelector("#item-name-data"),
+                description: item_template_element.querySelector("#item-description-data"),
+                price: item_template_element.querySelector("#item-price-data"),
+                creator: item_template_element.querySelector("#item-creator-data"),
+
+                creation_date: item_template_element.querySelector("#item-creation-date-data"),
+                update_date: item_template_element.querySelector("#item-update-date-data")
+            };
+
+            console.log(item);
+            let data_element_contents = {
+                name: item.name,
+                description: item.description, 
+                price: item.price,
+                creator: creator?.username,
+                
+                creation_date: new Date(item.created_at).toLocaleDateString(),
+                update_date: new Date(item.updated_at).toLocaleDateString()
+            };
+
+            image_element.addEventListener("error", (err => {
+                image_element.setAttribute("src", "placeholder-item-image.png")
+            }));
+            image_element.setAttribute("src", `${SHOP_API_URL}/items/id/${item.id}/image/`);
+    
+            let editable_elements = ["name", "description", "price"];
+            let input_elements = is_editable ? {} : null;
+            if (is_editable)
+            {
+                for (let i = 0; i < editable_elements.length; ++i)
+                {
+                    let input_elem = create_html_element("input", { disabled: "" }, { value: data_element_contents[editable_elements[i]] } );
+                    data_elements[editable_elements[i]].append(input_elem);
+                    input_elements[editable_elements[i]] = input_elem;
+                }
+            }
+            else
+            {
+                for (let i = 0; i < editable_elements.length; ++i)
+                {
+                    data_elements[editable_elements[i]].append(
+                        create_html_element("span", null, { textContent: data_element_contents[editable_elements[i]] })
+                    );
+                }
+            }
+            let constant_data_list = ["creation_date", "update_date"]; // ...that doesn't need a href link
+            for (let i = 0; i < constant_data_list.length; ++i)
+                data_elements[constant_data_list[i]].append(create_html_element("span", null, { textContent: data_element_contents[constant_data_list[i]] }));
+
+            data_elements.creator.append(create_html_element(
+                "a", { href: `./profile.html?id=${creator.id}` },
+                { textContent: data_element_contents["creator"] }
+            ));
+
+            return [item_template_element, input_elements];
+        }
+
+        let item_data, creator_data, self_is_creator;
+
+        async function get_data()
+        {
+            let error;
+            let item, creator, _self_is_creator
+            try {
+                [item, creator, _self_is_creator] = await fetch_item_and_creator_data();
+            } catch ([error]) {}
+
+            [item_data, creator_data, self_is_creator] = [item, creator, _self_is_creator];
+            console.log("SIC:", self_is_creator, _self_is_creator);
+            await load_promise; // wait for the page to load before displaying the data
+            console.log("Page is loaded!");
+
+            document.getElementById("loading-element").remove();
+
+            let item_element;
+            if (invalid_id)
+            {
+                document.body.append(document.createTextNode("Invalid ID on search parameter."));
+            }
+            else if (item == null)
+            {
+                if (error == null)
+                    document.body.append(document.createTextNode("Item not found"));
+                else
+                    document.body.append(document.createTextNode(`Error while fetching data: ${error?.message}`));
+            }
+            else
+            {
+                [item_data_element, editable_elements] = create_item_data_element(item, creator, self_is_creator);
+                editable_elements_ready = true;
+                document.body.append(item_data_element);
+            }
+        }
+        let get_data_promise = get_data();
+    </script>
+
+    <template id="item-data-template">
+        <div class="item-data">
+            Image: <br>
+            <img id="item-image" src="">
+            <table>
+                <tr>
+                    <td>Name</td>
+                    <td>:</td>
+                    <td id="item-name-data"></td>
+                </tr>
+                <tr>
+                    <td>Description</td>
+                    <td>:</td>
+                    <td id="item-description-data"></td>
+                </tr>
+                <tr>
+                    <td>Price</td>
+                    <td>:</td>
+                    <td id="item-price-data"></td>
+                </tr>
+                <tr>
+                    <td>Creator</td>
+                    <td>:</td>
+                    <td id="item-creator-data"></td>
+                </tr>
+                <tr>
+                    <td>Creation date</td>
+                    <td>:</td>
+                    <td id="item-creation-date-data"></td>
+                </tr>
+                <tr>
+                    <td>Update date</td>
+                    <td>:</td>
+                    <td id="item-update-date-data"></td>
+                </tr>
+            </table>
+        </div>
+    </template>
+</head>
+<body>
+    <div id="loading-element">
+        Loading...
+    </div>
+
+    <script>
+        let loading_span = document.getElementById("loading-span");
+
+        load_promise_resolver();
+
+        let item_data_element = document.getElementById("item-data-element");
+        let edit_buttons = null;
+    
+        let edit_button, cancel_edit_button, undo_edit_button, delete_button, item_image_input, edit_buttons_div;
+        get_data_promise.then(() => {
+            if (self_is_creator)
+            {
+                edit_button = create_html_element("button", null, { textContent: "Edit" });
+                cancel_edit_button = create_html_element("button", null, { textContent: "Cancel Edit" });
+                undo_edit_button = create_html_element("button", null, { textContent: "Undo Edit" });
+                delete_button = create_html_element("button", null, { textContent: "Delete" });
+                item_image_input = create_html_element("input", { type: "file", accept: "image/jpg,image/png" });
+
+                edit_buttons_div = create_html_element("div", { id: "edit-buttons" });
+
+                edit_button.addEventListener("click", edit_button_onclick);
+                cancel_edit_button.addEventListener("click", cancel_edit_button_onclick);
+                undo_edit_button.addEventListener("click", undo_edit_button_onclick);
+
+                delete_button.addEventListener("click", delete_button_onclick);
+                item_data_element.append(
+                    edit_button, delete_button
+                );
+
+                edit_buttons_div.append(edit_button);
+                
+                document.body.append(edit_buttons_div, delete_button);
+            }
+        });
+        
+    </script>
+</body>
+</html>

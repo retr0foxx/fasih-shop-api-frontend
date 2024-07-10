@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login page</title>
+    <style>
+        .login-form-box {
+            border-style: solid;
+            border-width: 2px;
+            width: fit-content;
+        }
+        .registration_success_status {
+            color: green;
+        }
+        .registration_failure_status {
+            color: red;
+        }
+        
+    </style>
+    <script src="env.js"></script>
+    <script>
+        function set_inputs_status(status)
+        {
+            for (let i = 0; i < inputs.length; ++i)
+                if (!status)
+                    inputs[i].setAttribute("disabled");
+                else
+                    inputs[i].removeAttribute("disabled");
+        }
+        async function login()
+        {
+            console.log(`Logging in with credentials: username = ${inputs["username"].value}; password = ${inputs["password"].value}$`);
+            set_inputs_status(false);
+            status_span.textContent = "";
+            let url_params = {
+                "username": inputs["username"].value,
+                "password": inputs["password"].value,
+            }
+            let query_parameters = new URLSearchParams(url_params).toString();
+            let response = await fetch(`http://${SHOP_API_HOSTNAME}:${SHOP_API_PORT}/users/?${query_parameters}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    "username": inputs["username"].value,
+                    "password": inputs["password"].value
+                })
+            });
+            console.log(response);
+            console.log(response.body)
+            if (!response.ok)
+            {
+                status_span.classList.remove("registration_success_status");
+                status_span.classList.add("registration_failure_status");
+                if (response.status == 409)
+                    status_span.textContent = "A user with that username has already exist";
+                else 
+                    status_span.textContent = "An unknown error has occured";
+            }
+            else
+            {
+                window.location = "/login.html?from=registration";
+            }
+            set_inputs_status(true);
+        }
+    </script>
+</head>
+<body>
+    <!-- TODO: If already logged in then don't allow registration -->
+    <div class="login-form-box">
+        <table>
+            <tr>
+                <td>Username</td>
+                <td>:</td>
+                <td><input type="text" id="username_input"></td>
+            </tr>
+            <tr>
+                <td>Password</td>
+                <td>:</td>
+                <td><input type="text" id="password_input"></td>
+            </tr>
+            <tr>
+                <td>Confirm password</td>
+                <td>:</td>
+                <td><input type="text" id="confirm_password_input"></td>
+            </tr>
+        </table>
+        <span id="registration_status_span"></span> <br>
+        <button onclick="login()">Login</button>
+
+        <script>
+            let inputs = {
+                "username": document.getElementById("username_input"),
+                "password": document.getElementById("password_input"),
+                "confirm_password": document.getElementById("confirm_password"),
+            }
+            let status_span = document.getElementById("registration_status_span");
+        </script>
+    </div>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create item</title>
+    <script src="./cookie_utils.js"></script>
+    <script src="./api-wrapper.js"></script>
+    <script>
+        let loaded_cookies = load_all_cookies();
+        if (!loaded_cookies.has("auth-token"))
+        {
+            alert("You must be logged in to create items!");
+            window.location = "/login.html";
+        }
+    </script>
+</head>
+<body>
+    <table>
+        <tr>
+            <td>Name</td>
+            <td>:</td>
+            <td><input type="text" id="item-name"></td>
+        </tr>
+        <tr>
+            <td>Description</td>
+            <td>:</td>
+            <td>
+                <textarea id="item-description"></textarea>
+            </td>
+        </tr>
+        <tr>
+            <td>Price</td>
+            <td>:</td>
+            <td><input type="number" id="item-price"></td>
+        </tr>
+        <tr>
+            <td>Image</td>
+            <td>:</td>
+            <td>
+                <input type="file" id="item-image"> <br>
+                <img id="item-image-preview" hidden>
+                <br>
+                <button id="remove-image-button" onclick="remove_image()" hidden="true">Remove image</button>
+            </td>
+        </tr>
+    </table>
+    <button onclick="create_item()" id="create-item-button">Create</button>
+    <script>
+        function remove_image()
+        {
+            item_input_elements.image.value = "";
+            remove_image_button.setAttribute("hidden", "true");
+            image_preview_element.src = "";
+        }
+
+        function set_all_inputs_state(state)
+        {
+            all_inputs_list.forEach((elem) => state ? elem.removeAttribute("disabled") : elem.setAttribute("disabled", ""));
+        }
+
+        async function create_item()
+        {
+            let item_name = item_input_elements.name.value.trim();
+            if (item_name == "")
+            {
+                alert("Item name cannot be empty!");
+                return;
+            }
+            let item_price = Number(item_input_elements.price.value);
+            if (!Number.isInteger(item_price) || item_price < 0)
+            {
+                alert("Invalid item price.");
+                return;
+            }
+
+            let image_file = item_input_elements.image.files[0];
+            console.log("image file:", image_file);
+            let created_item = new Item(null, item_name, item_price, item_input_elements.description.value, null, image_file);
+            console.log("Creating item:", created_item);
+            set_all_inputs_state(false);
+            try
+            {
+                let created_item_id = await Item.create(created_item, loaded_cookies.get("auth-token"));
+                console.log("Item successfully created!");
+                alert("Item successfully created!");
+                window.location = `/item.html?id=${created_item_id}`;
+            }
+            catch (error)
+            {
+                alert(`Error while creating item: ${error.message}`);
+                return;
+            }
+            finally
+            {
+                set_all_inputs_state(true);
+            }
+        }
+        let item_input_elements = {
+            name: document.querySelector("#item-name"),
+            description: document.querySelector("#item-description"),
+            price: document.querySelector("#item-price"),
+            image: document.querySelector("#item-image"),
+        }
+        let image_preview_element = document.querySelector("#item-image-preview");
+        let remove_image_button = document.querySelector("#remove-image-button");
+        let create_item_button = document.querySelector("#create-item-button");
+
+        // for one specific function that is toggling the input states
+        let all_inputs_list = [
+            ...Object.values(item_input_elements),
+            remove_image_button,
+            create_item_button
+        ];
+
+        item_input_elements.image.addEventListener("change", (event) => {
+            let file = event.target.files[0];
+            if (!file)
+            {
+                image_preview_element.setAttribute("hidden", "true");
+                remove_image_button.setAttribute("hidden", "true");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                image_preview_element.src = event.target.result;
+                image_preview_element.removeAttribute("hidden");
+                remove_image_button.removeAttribute("hidden");
+            }
+            reader.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>

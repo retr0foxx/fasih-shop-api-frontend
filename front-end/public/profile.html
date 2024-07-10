@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- 
+        Behaviour:
+        If the specified ID doesn't exist, then it will show a "user does not exist" error message
+        If no user ID is specified, it tries to check if the user is logged in and it will go to that page instead (yes it will redirect, i don't know if this is good or not).
+        If the no user ID is specified and the user is not logged in then it will redirect to the login page
+        
+        The page will show a loading screen when the user is still loading.
+        If the user is logged in then it will show a log out button.
+
+        TODO: Implement token verification and automatically log out if it is not valid.
+        It's unreasonable to only automatically do this check on the login page.
+     -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile</title>
+
+    <script src="cookie_utils.js"></script>
+    <script src="api-wrapper.js"></script>
+
+    <script>
+        let search_params = new URLSearchParams(window.location.search);
+        let all_cookies = load_all_cookies();
+        
+        let user_id = search_params.get("id");
+        let auth_token;
+        let logged_in = all_cookies.has("auth-token");
+        let login_user_id;
+        if (logged_in)
+            [auth_token, login_user_id] = [all_cookies.get("auth-token"), all_cookies.get("auth-id")];
+
+        if (user_id === null)
+        {
+            if (!logged_in)
+            {
+                window.location = "./login.html";
+            }
+            else
+            {
+                window.location = `./profile.html?id=${login_user_id}`;
+            }
+        }
+        let user_data_promise = User.get_by_id(user_id);
+    </script>
+
+    <template id="user-exists-template">
+        <div class="user-data">
+            <div class="user-credentials">
+                <table>
+                    <tr>
+                        <td>Username</td>
+                        <td>:</td>
+                        <td><span id="username-span"></span></td>
+                    </tr>
+                    <tr>
+                        <td>Join date</td>
+                        <td>:</td>
+                        <td><span id="join-date-span"></span></td>
+                    </tr>
+                </table>
+                <a id="view-items-link">View items</a>
+            </div>
+        </div>
+    </template>
+</head>
+<body>
+    <span id="loading-element">Loading...</span>
+    <script>
+        let user_exists_template = document.getElementById("user-exists-template");
+        let loading_element = document.getElementById("loading-element");
+        user_data_promise.then((user) => {
+            // console.log("Loaded user:", user);
+            let loaded = user_exists_template.content.cloneNode(true);
+            let username_span = loaded.getElementById("username-span");
+            let join_date_span = loaded.getElementById("join-date-span");
+            let view_items_link = loaded.getElementById("view-items-link");
+            view_items_link.href = `./items.html?creator=${user.id}`;
+            username_span.textContent = user.username;
+            join_date_span.textContent = new Date(user.created_at).toLocaleDateString();
+            // console.log("Loaded thing:", loaded)
+
+            if (logged_in)
+            {
+                let user_data_div = loaded.querySelector(".user-data");
+                console.log(loaded, user_data_div);
+                let logout_button = document.createElement("button");
+                logout_button.textContent = "Log out";
+                logout_button.addEventListener('click', (clicky) => {
+                    delete_cookies("auth-token", "auth-id");
+                    window.location = "./login.html";
+                });
+                user_data_div.append(logout_button);
+            }
+            document.body.append(loaded);
+            loading_element.remove();
+        });
+        user_data_promise.catch((error) => {
+            if (error instanceof ResourceNotFoundError)
+            {
+                document.body.append(document.createTextNode("User does not exist"));
+            }
+            else
+                document.body.append(document.createTextNode("Error:" + error.message.toString()));
+
+            loading_element.remove();
+        });
+    </script>
+</body>
+</html>

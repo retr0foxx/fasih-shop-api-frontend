@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- 
+        First checks if the user is already logged in by checking if the auth cookies exist and testing if they're valid
+        Locks the login button until it verifies the user to not be logged in
+        If the user is logged in then it will redirect to profile
+    -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login page</title>
+    <style>
+        .login-form-box {
+            border-style: solid;
+            border-width: 2px;
+            width: fit-content;
+        }
+        .login_success_status {
+            color: green;
+        }
+        .login_failure_status {
+            color: red;
+        }
+    </style>
+    <script src="api-wrapper.js"></script>
+    <script src="cookie_utils.js"></script>
+    <script>
+        let all_cookies = load_all_cookies();
+
+        function set_inputs_status(status)
+        {
+            for (let i = 0; i < inputs.length; ++i)
+                if (!status)
+                    inputs[i].setAttribute("disabled");
+                else
+                    inputs[i].removeAttribute("disabled");
+        }
+        async function login()
+        {
+            console.log(`Logging in with credentials: username = ${inputs["username"].value}; password = ${inputs["password"].value}$`);
+            set_inputs_status(false);
+            let token, userid;
+            try
+            {
+                [token, userid] = await User.auth(inputs["username"].value, inputs["password"].value);
+            }
+            catch (error)
+            {
+                set_inputs_status(true);
+                if (error instanceof AuthenticationError)
+                    status_span.textContent = "Authentication error";
+                else if (error instanceof ResourceNotFoundError)
+                    status_span.textContent = "A user with that username does not exist";
+                else
+                    throw error;
+
+                return;
+            }
+            console.log(`Token: ${token}; userid: ${userid}`);
+            // TODO: Do secure on production
+            document.cookie = create_basic_cookie_string("auth-token", token, 1000 * 60 * 60);
+            document.cookie = create_basic_cookie_string("auth-id", userid, 1000 * 60 * 60);
+
+            window.location = `/profile.html?id=${userid}&from=login.html`;
+            set_inputs_status(true);
+        }
+    </script>
+</head>
+<body>
+    <!-- TODO: If already logged in then don't allow registration -->
+    <div class="login-form-box">
+        <table>
+            <tr>
+                <td>Username</td>
+                <td>:</td>
+                <td><input type="text" id="username_input"></td>
+            </tr>
+            <tr>
+                <td>Password</td>
+                <td>:</td>
+                <td><input type="text" id="password_input"></td>
+            </tr>
+        </table>
+        <span id="login_status_span"></span> <br>
+        <button onclick="login()" id="login-button" disabled>Login</button>
+
+        <script>
+            let inputs = {
+                "username": document.getElementById("username_input"),
+                "password": document.getElementById("password_input"),
+            }
+            let status_span = document.getElementById("login_status_span");
+            let login_button = document.getElementById("login-button");
+
+            let search_params = new URLSearchParams(window.location.search);
+            if (search_params.get("from") == "registration")
+            {
+                alert("Registration successful!");
+            }
+            if (all_cookies.has("auth-token"))
+            {
+                let user_promise = User.get_by_token(all_cookies.get("auth-token"));
+                user_promise.then(() => window.location = `./profile.html?id=${all_cookies.get("auth-id")}`);
+                user_promise.catch((error) => {
+                    login_button.removeAttribute("disabled");
+                    if (error instanceof AuthenticationError)
+                    {
+                        console.log("Token is not valid anymore");
+                        delete_cookies("auth-token", "auth-id");
+                    }
+                    else throw error;
+                });
+            }
+            else
+                login_button.removeAttribute("disabled");
+
+            if (search_params.get("from") == "registration")
+                alert("Registration successful!");
+        </script>
+    </div>
+</body>
+</html>
