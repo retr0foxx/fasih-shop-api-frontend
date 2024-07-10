@@ -23,11 +23,11 @@ module.exports.getAllItems = ash(async (req, res, next) => {
 // TODO: Make it response with a 404 if there is no user with that ID
 module.exports.getItemsByCreatorId = ash(async (req, res, next) => {
     let creator_id = req.params.id;
-    const { items, total_items } = await ItemService.getItemsByCreatorId(creator_id, req.query);
+    const { items, total_count } = await ItemService.getItemsByCreatorId(creator_id, req.query);
 
     return res.status(200).json({
         message: `Items created by user ID ${creator_id}`,
-        total_count: total_items,
+        total_count: total_count,
         count: items.length,
         items: items.map(item => ({
             id: item.id,
@@ -41,11 +41,11 @@ module.exports.getItemsByCreatorId = ash(async (req, res, next) => {
 });
 
 module.exports.getItemsByName = ash(async (req, res, next) => {
-    const { items, total_items } = await ItemService.getItemsByName(req.params.itemName, req.query);
+    const { items, total_count } = await ItemService.getItemsByName(req.params.itemName, req.query);
 
     return res.status(200).json({
         message: 'Found results for: ' + req.params.itemName,
-        total_count: total_items,
+        total_count,
         items,
     });
 });
@@ -70,12 +70,18 @@ module.exports.create = ash(async (req, res, next) => {
 });
 
 module.exports.update = ash(async (req, res, next) => {
+    console.log({
+        id: req.params.id,
+        itemName: req.itemName,
+        price: req.price,
+        description: req.description
+    }, req, req.body);
     await ItemService.updateItem(
         {
             id: req.params.id,
-            itemName: req.itemName,
-            price: req.price,
-            description: req.description
+            itemName: req.body.itemName,
+            price: req.body.price,
+            description: req.body.description
         },
         req.file
     );
@@ -83,6 +89,7 @@ module.exports.update = ash(async (req, res, next) => {
 });
 
 module.exports.delete = ash(async (req, res, next) => {
+    console.log("Does it even reach here? ID ", req.params.id);
     await ItemService.deleteItem({ id: req.params.id }, req.file);
     return res.status(200).json({ message: 'Item deletion successful' });
 });

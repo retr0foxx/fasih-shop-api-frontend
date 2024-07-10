@@ -25,7 +25,7 @@ module.exports.loginUser = async ({ username, password }) => {
         process.env.JWT_KEY,
         process.env.MODE !== 'dev' ? { expiresIn: '1h' } : undefined
     );
-    return token;
+    return [token, user.id];
 }
 
 module.exports.getById = async (id) => {
@@ -45,10 +45,11 @@ module.exports.signUpUser = async ({ username, password }) => {
     };
 
     const hash = await bcrypt.hash(password, 10);
-    await UserDAO.create({
+    let created_user = await UserDAO.create({
         username: username,
         password: hash,
     });
+    return created_user;
 }
 
 // oh so it does that to filter out any other possible user-input parameters

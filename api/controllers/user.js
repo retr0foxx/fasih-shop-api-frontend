@@ -18,6 +18,19 @@ module.exports.getAllUsers = ash(async (req, res, next) => {
     });
 });
 
+module.exports.getByToken = ash(async (req, res, next) => {
+    console.log("Get by token:", req.userData.id);
+    const user = await UserService.getById(req.userData.id);
+    return res.status(200).json({
+        message: "User retrieved",
+        user: {
+            id: user.id,
+            username: user.username,
+            createdAt: user.createdAt
+        }
+    });
+});
+
 module.exports.getById = ash(async (req, res, next) => {
     const user = await UserService.getById(req.params.id);
 
@@ -33,16 +46,16 @@ module.exports.getById = ash(async (req, res, next) => {
 
 module.exports.create = ash(async (req, res, next) => {
     console.log(req.body);
-    await UserService.signUpUser({
+    let created_user = await UserService.signUpUser({
         username: req.body.username,
         password: req.body.password,
     });
 
-    return res.status(201).json({ message: 'User created successfully' });
+    return res.status(201).json({ message: 'User created successfully', id: created_user.id });
 });
 
 module.exports.login = ash(async (req, res, next) => {
-    const token = await UserService.loginUser({
+    const [token, id] = await UserService.loginUser({
         username: req.body.username,
         password: req.body.password,
     });
@@ -50,6 +63,7 @@ module.exports.login = ash(async (req, res, next) => {
     return res.status(200).json({
         message: 'Login successful',
         token_type: 'Bearer',
-        token
+        token,
+        id
     });
 });

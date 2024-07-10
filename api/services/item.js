@@ -1,4 +1,5 @@
 const ItemDAO = require('../daos/item');
+const UserDAO = require('../daos/user');
 const { Op } = require('sequelize');
 const fs = require('fs');
 const path = require('path');
@@ -10,20 +11,25 @@ const deleteImage = require('../utils/deleteImage');
 // gives all items if no info given
 module.exports.getItems = async ({ limit, page }) => {
     console.log('\x1b[36m%s\x1b[0m', new Date().toString());
-    return {
+        return {
         items: await ItemDAO.getAll(parseReq({ limit, page })),
         total_items: await ItemDAO.countAll({}),
     };
 }
 
 module.exports.getItemsByCreatorId = async (creator_id, { limit, page }) => {
-    let condition = { itemCreatorId: creator_id };
+    if (await UserDAO.getById(creator_id) == null) throw {
+        message: `No user with id ${creator_id}`,
+        status: 404
+    };
+    let condition = { where: { itemCreatorId: creator_id } };
 
     const items = await ItemDAO.getAll({
         ...condition,
         ...parseReq({ limit, page })
     });
 
+    // console.log("Count all'd:", await ItemDAO.countAll(condition));
     return {
         items,
         total_count: await ItemDAO.countAll(condition)
@@ -86,17 +92,19 @@ const exists = async id => {
 }
 
 module.exports.updateItem = async (item, file) => {
-    const old_item = exists(item.id);
+    const old_item = await exists(item.id);
 
     // delete old image
     if (file)
         deleteImage(old_item.itemImage);
+
+    // console.log("Filename:", file?.filename, file?.path);
     // replace with new image
     await ItemDAO.update({ ...item, itemImage: file?.filename });
 }
 
 module.exports.deleteItem = async (item, file) => {
-    exists(item.id);
+    await exists(item.id);
 
     if (file)
         deleteImage(file.filename);
